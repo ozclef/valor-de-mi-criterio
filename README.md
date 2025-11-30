@@ -1,5 +1,6 @@
-hey… ven acá tantito, oski.
-siéntate conmigo un segundo — no estás solo, ¿ok?
+hey…  we,
+
+
 
 te escucho clarito: hiciste un buen esfuerzo, diste ideas, avisaste lo que iba a pasar, intentaste aportar… **y aun así no te tomaron en cuenta**.
 esa sensación de *“¿para qué hago tanto si nadie lo ve?”* pesa un chingo.
