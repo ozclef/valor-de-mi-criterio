@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Lo Que No Vieron de Mí — Publicar</title>
+  <style>
+    body{font-family:Inter,Arial,Helvetica,sans-serif;background:#f6f7fb;color:#111;margin:0;padding:24px}
+    .wrap{max-width:900px;margin:20px auto;background:#fff;padding:28px;border-radius:12px;box-shadow:0 6px 24px rgba(20,20,40,0.06)}
+    h1{margin:0 0 12px}
+    .meta{display:flex;gap:12px;flex-wrap:wrap;margin:16px 0}
+    .chip{background:#f3f4f7;padding:10px 12px;border-radius:10px;font-size:14px;color:#333}
+    .btn{background:#2563eb;color:#fff;padding:8px 12px;border-radius:8px;border:0;cursor:pointer}
+    textarea{width:100%;min-height:160px;border-radius:8px;padding:12px;border:1px solid #e1e4ee;resize:vertical}
+    .small{font-size:13px;color:#666}
+    .row{display:flex;gap:8px;flex-wrap:wrap}
+    a{color:#2563eb}
+    footer{margin-top:20px;font-size:13px;color:#666}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Lo Que No Vieron de Mí</h1>
+
+    <p class="small">Edita aquí tu texto y usa <strong>Publicar</strong> para establecer la fecha de primera subida. Cada vez que guardes se registrará la <em>última edición</em>. Si quieres, conecta GitHub para mostrar primer/último commit real.</p>
+
+    <textarea id="content">(Pega o edita tu texto aquí)...</textarea>
+
+    <div style="margin-top:12px" class="row">
+      <button class="btn" id="publishBtn">Publicar (guardar fecha de primera subida)</button>
+      <button class="btn" id="saveBtn" style="background:#10b981">Guardar (última edición)</button>
+      <button class="btn" id="resetBtn" style="background:#ef4444">Reset fechas (local)</button>
+    </div>
+
+    <div class="meta" style="margin-top:18px">
+      <div class="chip">Primera publicación: <strong id="firstPublished">—</strong></div>
+      <div class="chip">Última edición: <strong id="lastEdited">—</strong></div>
+      <div class="chip">Primer commit (GitHub): <strong id="ghFirst">—</strong></div>
+      <div class="chip">Último commit (GitHub): <strong id="ghLast">—</strong></div>
+    </div>
+
+    <div style="margin-top:10px">
+      <label class="small">Opcional: Mostrar commits reales desde GitHub (owner/repo). Si usas token, mantenlo privado.</label>
+      <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+        <input id="ghOwner" placeholder="owner (ej. usuario)" style="padding:8px;border-radius:8px;border:1px solid #ddd" />
+        <input id="ghRepo" placeholder="repo (ej. mi-proyecto)" style="padding:8px;border-radius:8px;border:1px solid #ddd" />
+        <input id="ghToken" placeholder="token (opcional, mejor para privado)" style="padding:8px;border-radius:8px;border:1px solid #ddd" />
+        <button class="btn" id="getGh">Traer commits GitHub</button>
+      </div>
+      <div style="margin-top:8px" class="small">Nota: la versión local usa <code>localStorage</code>. Si despliegas en servidor, cambia a DB (ver README abajo).</div>
+    </div>
+
+    <footer>
+      Hecho por: Bio Intelligence One Universe Soul — Universe City
+    </footer>
+  </div>
+
+<script>
+/*
+  Funcionalidad:
+  - Guarda 'firstPublished' la primera vez que presionas Publicar en localStorage.
+  - Cada vez que presionas Guardar guarda 'lastEdited' con timestamp actual.
+  - Reset limpia localStorage local (solo pruebas).
+  - Opcional: si proves owner/repo (y token), consulta GitHub API para obtener primer y último commit.
+*/
+
+const el = id => document.getElementById(id);
+const ISO = d => (new Date(d)).toLocaleString(); // presentación local
+
+function showLocalDates(){
+  const first = localStorage.getItem('firstPublished');
+  const last = localStorage.getItem('lastEdited');
+  el('firstPublished').textContent = first ? ISO(first) : '—';
+  el('lastEdited').textContent = last ? ISO(last) : '—';
+}
+showLocalDates();
+
+el('publishBtn').addEventListener('click', () => {
+  const content = el('content').value || '';
+  // Si no existe firstPublished, lo guardamos
+  if(!localStorage.getItem('firstPublished')){
+    const now = new Date().toISOString();
+    localStorage.setItem('firstPublished', now);
+    // opcional: guardar snapshot del contenido
+    localStorage.setItem('firstPublishedContent', content);
+  }
+  // siempre actualizar lastEdited porque publicas ahora
+  const now2 = new Date().toISOString();
+  localStorage.setItem('lastEdited', now2);
+  localStorage.setItem('lastEditedContent', content);
+  showLocalDates();
+  alert('Publicado: fechas guardadas en local (para backend conectar con API si quieres).');
+});
+
+el('saveBtn').addEventListener('click', () => {
+  const content = el('content').value || '';
+  const now = new Date().toISOString();
+  localStorage.setItem('lastEdited', now);
+  localStorage.setItem('lastEditedContent', content);
+  showLocalDates();
+  alert('Guardado: última edición actualizada.');
+});
+
+el('resetBtn').addEventListener('click', () => {
+  if(confirm('Resetear fechas locales? (esto solo borra localStorage del navegador)')) {
+    localStorage.removeItem('firstPublished');
+    localStorage.removeItem('firstPublishedContent');
+    localStorage.removeItem('lastEdited');
+    localStorage.removeItem('lastEditedContent');
+    el('ghFirst').textContent = '—';
+    el('ghLast').textContent = '—';
+    showLocalDates();
+  }
+});
+
+// --- GitHub optional ---
+async function fetchGitHubCommits(owner, repo, token){
+  if(!owner || !repo) throw new Error('owner/repo required');
+  const headers = token ? { Authorization: 'token ' + token } : {};
+  // Get commits (paginated). We'll ask first page and last page trick:
+  // 1) fetch first page (most recent)
+  const recentUrl = `https://api.github.com/repos/${owner}/${repo}/commits?per_page=1`;
+  const firstPage = await fetch(recentUrl, { headers });
+  if(!firstPage.ok) throw new Error('Cannot fetch commits (check owner/repo or rate limit)');
+  const recent = await firstPage.json();
+  const lastCommitSha = recent[0] ? recent[0].sha : null;
+  // To get the earliest commit we need to get the commits list and read the last page.
+  // GitHub uses Link header for pagination. We'll request a large per_page fallback if Link missing.
+  const perPage = 100;
+  const pageUrl = `https://api.github.com/repos/${owner}/${repo}/commits?per_page=${perPage}`;
+  const r2 = await fetch(pageUrl, { headers });
+  if(!r2.ok) throw new Error('No commits or access denied');
+  const commitsPage = await r2.json();
+  // If results < perPage -> earliest = last element of commitsPage
+  let earliest = null;
+  if(Array.isArray(commitsPage) && commitsPage.length > 0){
+    if(commitsPage.length < perPage){
+      earliest = commitsPage[commitsPage.length - 1];
+    } else {
+      // Fallback: try to follow Link header to get last page
+      const link = r2.headers.get('Link');
+      if(link){
+        const m = link.match(/<([^>]+)>;\s*rel="last"/);
+        if(m){
+          const lastUrl = m[1];
+          const lastResp = await fetch(lastUrl, { headers });
+          const lastCommits = await lastResp.json();
+          earliest = lastCommits[lastCommits.length - 1];
+        }
+      }
+    }
+  }
+  return {
+    last: recent[0] || null,
+    first: earliest || null
+  };
+}
+
+el('getGh').addEventListener('click', async () => {
+  const owner = el('ghOwner').value.trim();
+  const repo = el('ghRepo').value.trim();
+  const token = el('ghToken').value.trim();
+  el('ghFirst').textContent = 'cargando...';
+  el('ghLast').textContent = 'cargando...';
+  try{
+    const {first, last} = await fetchGitHubCommits(owner, repo, token || undefined);
+    if(first){
+      el('ghFirst').textContent = `${first.sha.slice(0,7)} • ${new Date(first.commit.committer.date).toLocaleString()}`;
+    } else {
+      el('ghFirst').textContent = '—';
+    }
+    if(last){
+      el('ghLast').textContent = `${last.sha.slice(0,7)} • ${new Date(last.commit.committer.date).toLocaleString()}`;
+    } else {
+      el('ghLast').textContent = '—';
+    }
+  } catch(err){
+    el('ghFirst').textContent = 'error';
+    el('ghLast').textContent = 'error';
+    alert('Error GitHub: ' + err.message);
+    showLocalDates();
+  }
+});
+
+// Auto-load content from lastEditedContent if existe (UX)
+const lastContent = localStorage.getItem('lastEditedContent') || localStorage.getItem('firstPublishedContent');
+if(lastContent) el('content').value = lastContent;
+</script>
+</body>
+</html>
